@@ -63,26 +63,32 @@ else:
 
     if st.button("🪄 Make the Page!", use_container_width=True):
         with st.spinner("Writing and Painting..."):
-            # A. Generate Text (Gemini 3 Flash Model)
+            # A. Generate Text (Gemini 2.5 Flash Model)
             story_prompt = f"Write a 4-sentence story for a 3-year-old about {char_name} ({char_desc}) in {setting}. Context: {action}."
-            story_res = client.models.generate_content(model="gemini-3-flash-preview", contents=story_prompt)
+            story_res = client.models.generate_content(model="gemini-2.5-flash", contents=story_prompt)
             story_text = story_res.text
 
-            # B. Generate Image (Gemini 3 Pro Image / Nano Banana Pro)
+            # B. Generate Image (Imagen 3.0)
             img_prompt = f"Child-friendly soft 3D animation style. {char_name} ({char_desc}) in {setting}. Bright and happy colors."
-            image_res = client.models.generate_content(
-                model="gemini-3-pro-image-preview",
-                contents=img_prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=["IMAGE"]
-                )
-            )
             
-            # C. Display Results
             try:
-                st.image(image_res.candidates[0].content.parts[0].inline_data.data)
+                # We use generate_images with the official Imagen 3 model
+                # and explicitly ask for 1 image to avoid free-tier quota limits
+                image_res = client.models.generate_images(
+                    model="imagen-3.0-generate-001",
+                    prompt=img_prompt,
+                    config=types.GenerateImagesConfig(
+                        number_of_images=1,
+                        aspect_ratio="4:3",
+                        output_mime_type="image/jpeg"
+                    )
+                )
+                
+                # C. Display Results
+                st.image(image_res.generated_images[0].image.image_bytes)
             except Exception as e:
-                st.warning("The magic painter is a little busy right now, but here is your story!")
+                # Fallback so the app doesn't crash if the image API hiccups
+                st.warning("The magic painter is taking a quick break, but here is your story!")
             
             st.subheader(story_text)
 
