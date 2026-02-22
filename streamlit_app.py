@@ -63,28 +63,10 @@ else:
 
     if st.button("🪄 Make the Page!", use_container_width=True):
         with st.spinner("Writing and Painting..."):
-            # A. Generate Text (Gemini Flash Model)
+            # A. Generate Text (Gemini 3 Flash Model)
             story_prompt = f"Write a 4-sentence story for a 3-year-old about {char_name} ({char_desc}) in {setting}. Context: {action}."
-            story_res = client.models.generate_content(model="gemini-2.5-flash", contents=story_prompt)
+            story_res = client.models.generate_content(model="gemini-3-flash-preview", contents=story_prompt)
             story_text = story_res.text
 
-            # B. Generate Image (Gemini 2.5 Flash Image Model)
-            img_prompt = f"Child-friendly soft 3D animation style. {char_name} ({char_desc}) in {setting}. Bright and happy colors."
-            image_res = client.models.generate_content(
-                model="gemini-2.5-flash-image",
-                contents=img_prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=["IMAGE"]
-                )
-            )
-            
-            # C. Display Results
-            st.image(image_res.candidates[0].content.parts[0].inline_data.data)
-            st.subheader(story_text)
-
-            # D. Audio Read Aloud
-            tts = gTTS(text=story_text, lang='en')
-            tts.save("story.mp3")
-            with open("story.mp3", "rb") as f:
-                data = base64.b64encode(f.read()).decode()
-                st.markdown(f'<audio autoplay="true" src="data:audio/mp3;base64,{data}">', unsafe_allow_html=True)
+            # B. Generate Image (Gemini 3 Pro Image / Nano Banana Pro)
+            img_prompt = f"Child-friendly soft 3D animation style. {char_name} ({char_desc})
