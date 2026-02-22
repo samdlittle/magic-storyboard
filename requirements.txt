@@ -1,5 +1,5 @@
 streamlit
 google-genai
 pandas
-gTTS
-st-gsheets-connection
+requests
+streamlit-gsheets-connection
