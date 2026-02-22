@@ -4,6 +4,7 @@ from google.genai import types
 import pandas as pd
 import urllib.parse
 import json
+import requests
 from streamlit_gsheets import GSheetsConnection
 
 # --- 1. SETUP ---
@@ -21,6 +22,26 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data():
     return conn.read(spreadsheet=SHEET_URL, ttl=0)
+
+# --- NEW: ROBUST IMAGE DOWNLOADER ---
+@st.cache_data(show_spinner=False, ttl=3600)
+def get_image_bytes(prompt, width=800, height=600):
+    """Downloads the image on the backend to bypass browser blocks."""
+    try:
+        # Clean the prompt and make it URL safe
+        clean_prompt = prompt.replace('\n', ' ')[:400] 
+        safe_prompt = urllib.parse.quote(clean_prompt, safe='')
+        url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width={width}&height={height}&nologo=true"
+        
+        # Pretend to be a normal web browser to avoid getting blocked
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers, timeout=15)
+        
+        if response.status_code == 200:
+            return response.content
+    except Exception as e:
+        pass
+    return None
 
 # --- 2. LOGIN & SIDEBAR ---
 if 'family_id' not in st.session_state:
@@ -69,13 +90,17 @@ if not st.session_state.story_pages:
     # STEP 1: PICK A CHARACTER
     if not st.session_state.selected_char:
         st.markdown("### 1️⃣ Tap your hero!")
-        char_cols = st.columns(min(len(user_chars), 3)) # Up to 3 per row
+        char_cols = st.columns(min(len(user_chars), 3)) 
         
         for i, row in user_chars.iterrows():
             with char_cols[i % 3]:
-                safe_desc = urllib.parse.quote(row['char_desc'])
-                icon_url = f"https://image.pollinations.ai/prompt/Cute_3D_icon_of_{safe_desc}?width=300&height=300&nologo=true"
-                st.image(icon_url, use_container_width=True)
+                # Load picture directly via backend
+                img_bytes = get_image_bytes(f"Cute 3D icon of {row['char_desc']}", 300, 300)
+                if img_bytes:
+                    st.image(img_bytes, use_container_width=True)
+                else:
+                    st.warning("Image missing")
+                    
                 if st.button(f"Pick {row['char_name']}", key=f"char_{i}", use_container_width=True):
                     st.session_state.selected_char = row['char_name']
                     st.session_state.char_desc = row['char_desc']
@@ -90,13 +115,14 @@ if not st.session_state.story_pages:
             
         st.markdown("### 2️⃣ Tap a place to go!")
         settings = ["The Moon", "A Candy Forest", "Under the Sea", "A Dinosaur Jungle"]
-        set_cols = st.columns(2) # 2 per row for bigger pictures
+        set_cols = st.columns(2) 
         
         for i, s in enumerate(settings):
             with set_cols[i % 2]:
-                safe_set = urllib.parse.quote(s)
-                set_icon = f"https://image.pollinations.ai/prompt/Cute_toddler_landscape_of_{safe_set}?width=400&height=300&nologo=true"
-                st.image(set_icon, use_container_width=True)
+                img_bytes = get_image_bytes(f"Cute toddler landscape of {s}", 400, 300)
+                if img_bytes:
+                    st.image(img_bytes, use_container_width=True)
+                
                 if st.button(f"Go to {s}", key=f"set_{i}", use_container_width=True):
                     st.session_state.selected_setting = s
                     st.rerun()
@@ -117,7 +143,6 @@ if not st.session_state.story_pages:
                 char_d = st.session_state.char_desc
                 place = st.session_state.selected_setting
 
-                # Ask Gemini to return strictly JSON for an 8-page story
                 prompt = f"""
                 Write an 8-page children's book for a 3-year-old. 
                 Character: {char_n} ({char_d}). Setting: {place}.
@@ -147,10 +172,13 @@ else:
     
     st.markdown(f"### Page {st.session_state.current_page + 1} of {total_pages}")
     
-    # Render the Image for the current page
-    safe_prompt = urllib.parse.quote(page_data['image_prompt'])
-    img_url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width=1024&height=768&nologo=true"
-    st.image(img_url, use_container_width=True)
+    # Render the Image securely via backend bytes
+    with st.spinner("Painting the page... 🎨"):
+        img_bytes = get_image_bytes(page_data['image_prompt'], 1024, 768)
+        if img_bytes:
+            st.image(img_bytes, use_container_width=True)
+        else:
+            st.error("The magic painter got confused! (Image failed to load)")
     
     # Render the Text
     st.markdown(f"## {page_data['text']}")
