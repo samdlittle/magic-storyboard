@@ -67,9 +67,9 @@ else:
             story_res = client.models.generate_content(model="gemini-2.5-flash", contents=story_prompt)
             story_text = story_res.text
 
-            # B. Generate Image (Imagen 3.0 Model)
+            # B. Generate Image (Imagen 4.0 Model)
             img_prompt = f"Child-friendly soft 3D animation style. {char_name} ({char_desc}) in {setting}. Bright and happy colors."
-            image_res = client.models.generate_images(model="imagen-3.0-generate-002", prompt=img_prompt)
+            image_res = client.models.generate_images(model="imagen-4.0-generate-001", prompt=img_prompt)
             
             # C. Display Results
             st.image(image_res.generated_images[0].image.image_bytes)
