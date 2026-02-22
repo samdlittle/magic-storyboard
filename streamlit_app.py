@@ -4,7 +4,6 @@ from google.genai import types
 import pandas as pd
 import urllib.parse
 import json
-import requests
 from streamlit_gsheets import GSheetsConnection
 
 # --- 1. SETUP ---
@@ -23,25 +22,12 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 def load_data():
     return conn.read(spreadsheet=SHEET_URL, ttl=0)
 
-# --- NEW: ROBUST IMAGE DOWNLOADER ---
-@st.cache_data(show_spinner=False, ttl=3600)
-def get_image_bytes(prompt, width=800, height=600):
-    """Downloads the image on the backend to bypass browser blocks."""
-    try:
-        # Clean the prompt and make it URL safe
-        clean_prompt = prompt.replace('\n', ' ')[:400] 
-        safe_prompt = urllib.parse.quote(clean_prompt, safe='')
-        url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width={width}&height={height}&nologo=true"
-        
-        # Pretend to be a normal web browser to avoid getting blocked
-        headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(url, headers=headers, timeout=15)
-        
-        if response.status_code == 200:
-            return response.content
-    except Exception as e:
-        pass
-    return None
+# Helper to generate safe image URLs
+def get_image_url(prompt):
+    # Keep the prompt very short to prevent URL breaking
+    short_prompt = prompt[:150] 
+    safe_prompt = urllib.parse.quote(short_prompt)
+    return f"https://image.pollinations.ai/prompt/{safe_prompt}?nologo=true"
 
 # --- 2. LOGIN & SIDEBAR ---
 if 'family_id' not in st.session_state:
@@ -94,13 +80,10 @@ if not st.session_state.story_pages:
         
         for i, row in user_chars.iterrows():
             with char_cols[i % 3]:
-                # Load picture directly via backend
-                img_bytes = get_image_bytes(f"Cute 3D icon of {row['char_desc']}", 300, 300)
-                if img_bytes:
-                    st.image(img_bytes, use_container_width=True)
-                else:
-                    st.warning("Image missing")
-                    
+                # Visual Icon
+                icon_url = get_image_url(f"Cute 3D icon of {row['char_desc']}")
+                st.image(icon_url, use_container_width=True)
+                
                 if st.button(f"Pick {row['char_name']}", key=f"char_{i}", use_container_width=True):
                     st.session_state.selected_char = row['char_name']
                     st.session_state.char_desc = row['char_desc']
@@ -119,9 +102,9 @@ if not st.session_state.story_pages:
         
         for i, s in enumerate(settings):
             with set_cols[i % 2]:
-                img_bytes = get_image_bytes(f"Cute toddler landscape of {s}", 400, 300)
-                if img_bytes:
-                    st.image(img_bytes, use_container_width=True)
+                # Visual Icon
+                set_url = get_image_url(f"Cute toddler landscape of {s}")
+                st.image(set_url, use_container_width=True)
                 
                 if st.button(f"Go to {s}", key=f"set_{i}", use_container_width=True):
                     st.session_state.selected_setting = s
@@ -148,7 +131,7 @@ if not st.session_state.story_pages:
                 Character: {char_n} ({char_d}). Setting: {place}.
                 Output a JSON array of 8 objects.
                 Format exactly like this: [{{"text": "Short simple sentence here.", "image_prompt": "Visual description of the scene"}}, ...]
-                The image_prompt must always start with: "Cute 3D Pixar style for toddlers, {char_n}, {char_d}, in {place}".
+                Keep the image_prompt VERY short (under 10 words). Example: "Pixar style, {char_n} in {place}."
                 """
                 
                 res = client.models.generate_content(
@@ -172,13 +155,9 @@ else:
     
     st.markdown(f"### Page {st.session_state.current_page + 1} of {total_pages}")
     
-    # Render the Image securely via backend bytes
-    with st.spinner("Painting the page... 🎨"):
-        img_bytes = get_image_bytes(page_data['image_prompt'], 1024, 768)
-        if img_bytes:
-            st.image(img_bytes, use_container_width=True)
-        else:
-            st.error("The magic painter got confused! (Image failed to load)")
+    # Render the Image directly
+    img_url = get_image_url(page_data['image_prompt'])
+    st.image(img_url, use_container_width=True)
     
     # Render the Text
     st.markdown(f"## {page_data['text']}")
