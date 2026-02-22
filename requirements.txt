@@ -2,4 +2,4 @@ streamlit
 google-genai
 pandas
 requests
-streamlit-gsheets-connection
+st-gsheets-connection
