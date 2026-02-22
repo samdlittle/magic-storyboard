@@ -1,5 +1,6 @@
 import streamlit as st
 from google import genai
+from google.genai import types
 import pandas as pd
 from gtts import gTTS
 import base64
@@ -67,12 +68,18 @@ else:
             story_res = client.models.generate_content(model="gemini-2.5-flash", contents=story_prompt)
             story_text = story_res.text
 
-            # B. Generate Image (Imagen 4.0 Model)
+            # B. Generate Image (Gemini 2.5 Flash Image Model)
             img_prompt = f"Child-friendly soft 3D animation style. {char_name} ({char_desc}) in {setting}. Bright and happy colors."
-            image_res = client.models.generate_images(model="imagen-4.0-generate-001", prompt=img_prompt)
+            image_res = client.models.generate_content(
+                model="gemini-2.5-flash-image",
+                contents=img_prompt,
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE"]
+                )
+            )
             
             # C. Display Results
-            st.image(image_res.generated_images[0].image.image_bytes)
+            st.image(image_res.candidates[0].content.parts[0].inline_data.data)
             st.subheader(story_text)
 
             # D. Audio Read Aloud
