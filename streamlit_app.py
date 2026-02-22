@@ -2,7 +2,9 @@ import streamlit as st
 from google import genai
 from google.genai import types
 import pandas as pd
+import urllib.parse
 import json
+import requests
 import asyncio
 import edge_tts
 from streamlit_gsheets import GSheetsConnection
@@ -23,23 +25,23 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 def load_data():
     return conn.read(spreadsheet=SHEET_URL, ttl=0)
 
-# --- NATIVE GOOGLE IMAGE GENERATION ---
-@st.cache_data(show_spinner=False)
-def get_gemini_image(prompt, aspect="4:3"):
-    """Uses your AI Studio key to generate guaranteed images."""
+# --- ROBUST IMAGE DOWNLOADER (Bypasses API Region Locks) ---
+@st.cache_data(show_spinner=False, ttl=3600)
+def get_story_image(prompt, width=800, height=600):
+    """Downloads the image on the backend to guarantee it loads."""
     try:
-        res = client.models.generate_images(
-            model="imagen-3.0-generate-001",
-            prompt=prompt,
-            config=types.GenerateImagesConfig(
-                number_of_images=1, 
-                aspect_ratio=aspect,
-                output_mime_type="image/jpeg"
-            )
-        )
-        return res.generated_images[0].image.image_bytes
+        clean_prompt = prompt.replace('\n', ' ')[:400] 
+        safe_prompt = urllib.parse.quote(clean_prompt, safe='')
+        url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width={width}&height={height}&nologo=true"
+        
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        response = requests.get(url, headers=headers, timeout=15)
+        
+        if response.status_code == 200:
+            return response.content
     except Exception as e:
-        return None
+        pass
+    return None
 
 def generate_good_audio(text, page_num):
     """Uses Microsoft Edge's Neural TTS for a highly realistic voice."""
@@ -100,7 +102,7 @@ if not st.session_state.story_pages:
         for i, row in user_chars.iterrows():
             with char_cols[i % 3]:
                 with st.spinner("Drawing icon..."):
-                    icon_bytes = get_gemini_image(f"Cute 3D icon of {row['char_desc']}, white background", "1:1")
+                    icon_bytes = get_story_image(f"Cute 3D icon of {row['char_desc']}, white background", 300, 300)
                 if icon_bytes:
                     st.image(icon_bytes, use_container_width=True)
                 if st.button(f"Pick {row['char_name']}", key=f"char_{i}", use_container_width=True):
@@ -117,7 +119,7 @@ if not st.session_state.story_pages:
         for i, s in enumerate(settings):
             with set_cols[i % 2]:
                 with st.spinner("Drawing place..."):
-                    set_bytes = get_gemini_image(f"Cute toddler landscape of {s}", "4:3")
+                    set_bytes = get_story_image(f"Cute toddler landscape of {s}", 400, 300)
                 if set_bytes:
                     st.image(set_bytes, use_container_width=True)
                 if st.button(f"Go to {s}", key=f"set_{i}", use_container_width=True):
@@ -182,9 +184,9 @@ else:
     
     st.markdown(f"### Page {st.session_state.current_page + 1} of {total_pages}")
     
-    # Generate the high-quality Imagen picture for this specific page
+    # Generate the high-quality picture safely on the backend
     with st.spinner("Painting the page... 🎨"):
-        img_bytes = get_gemini_image(page_data['image_prompt'], "4:3")
+        img_bytes = get_story_image(page_data['image_prompt'], 1024, 768)
         if img_bytes:
             st.image(img_bytes, use_container_width=True)
         else:
